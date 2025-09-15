@@ -1,0 +1,214 @@
+---
+title: "DSA2101 Valentine's Day Group Project"
+author: "Jacob, Hannah, Xin Yu, Pek Ee, Kevin"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+<style>
+#TOC {
+  font-size: 16px;
+  border-color: #000000
+}
+body {
+  font-size: 16px;
+  font-family: Calibri;
+  background-color: #FFF0F5;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, include = TRUE,
+                      fig.align = "center",  out.width = "80%")
+```
+
+# Introduction
+Our group decided on the Valentine's Day Consumer Data from TidyTuesday. The data was arranged by Suraj Das for a Kaggle dataset, covering the years 2010 to 2022. This dataset, derived from annual surveys conducted by the National Retail Federation in the United States, spans the years 2010 to 2022 and examines consumer intentions and spending behaviors for Valentine's Day celebrations.
+
+The dataset is split into 3 different parts. Firstly, `historical_spending` is data mainly about the historical average spending on 7 categories of gifts - namely candy, flowers, jewelry, greeting cards, evening out, clothing, and gift cards - for each year from 2010 to 2022. Secondly, `gifts_age` is data broadly about the average proportion of people who are spending on each gift category, for each age group - namely 18-24, 25-34, 35-44, 45-54, 55-64, and 65+. Thirdly, `gifts_gender` is data largely about the average proportion of people who are spending on each gift category, for each gender type - namely men and women. Our primary research question seeks to explore: "How does Valentine's Day spending vary across different gift categories?" Through this analysis, we aim to uncover how cultural norms, life stages, and broader economic trends influence consumer spending behavior on this holiday.
+
+## Loading packages & datasets
+```{r}
+library(stringr)
+library(readxl)
+library(tidyverse)
+library(lubridate)
+library(ggrepel)
+
+historical_spending <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-02-13/historical_spending.csv')
+
+gifts_age <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-02-13/gifts_age.csv')
+
+gifts_gender <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-02-13/gifts_gender.csv')
+```
+
+
+# Data Cleaning & Data Summary
+
+## Data Cleaning
+```{r}
+gender_df = gifts_gender %>%
+  select(-SpendingCelebrating) %>%
+  pivot_longer(cols = 2:8, names_to = "Gifts", values_to = "Percent") %>%
+  mutate(Gender=factor(Gender),Gifts=factor(Gifts))
+
+hist_df = historical_spending %>%
+  select(-PercentCelebrating, -PerPerson) %>%
+  pivot_longer(cols = 2:8, names_to = "Gifts", values_to = "Amount") %>%
+  mutate(Year=factor(Year),Gifts=factor(Gifts))
+
+age_df = gifts_age %>%
+  select(-SpendingCelebrating) %>%
+  pivot_longer(cols = 2:8, names_to = "Gifts", values_to = "Percent") %>%
+  mutate(Age=factor(Age),Gifts=factor(Gifts))
+```
+
+To clean our datasets, we removed columns that we deemed unnecessary for our visualizations - namely `SpendingCelebrating` from `gifts_gender`, `PercentCelebrating` and `PerPerson` from `historical_spending` and `SpendingCelebrating` from `gifts_age`. Additionally, we collapsed the multiple columns of gift categories into 2 main columns. The first is `Gifts` that stores the names of gift categories. The second is either `Percent` or `Amount` that stores the average percentage of consumers or average amount spent respectively. This is useful for global aesthetic mapping later in our visualizations. Lastly, we converted all categorical variables in each dataset into factors. As a result, we have 3 tidied datasets, which are `gender_df`,`hist_df`, and `age_df`.
+
+## Data Summary
+```{r}
+#highest
+highest_spent_gender = gender_df %>%
+  group_by(Gender) %>%
+  filter(Percent == max(Percent))
+highest_spent_gender
+
+highest_spent_year = hist_df %>%
+  group_by(Year) %>%
+  filter(Amount == max(Amount)) %>%
+  arrange(desc(Year)) 
+highest_spent_year
+
+highest_spent_age = age_df %>%
+  group_by(Age) %>%
+  filter(Percent == max(Percent)) %>%
+  arrange(Age)
+highest_spent_age
+
+#lowest
+lowest_spent_gender = gender_df %>%
+  group_by(Gender) %>%
+  filter(Percent == min(Percent))
+lowest_spent_gender
+
+lowest_spent_year = hist_df %>%
+  group_by(Year) %>%
+  filter(Amount == min(Amount)) %>%
+  arrange(desc(Year)) 
+lowest_spent_year
+
+lowest_spent_age = age_df %>%
+  group_by(Age) %>%
+  filter(Percent == min(Percent)) %>%
+  arrange(Age)
+lowest_spent_age
+```
+
+Then, with the 3 tidied datasets, we extracted the top gift categories for each gender, for each age group, and for each year from 2010 to 2022. Conversely, we extracted the lowest-spending gift categories from the same 3 datasets. These key summary statistics provided an initial understanding of spending trends and helped shape our expectations for subsequent visualizations. The following are some of the interesting observations we want to highlight. 
+
+To begin with, in the `highest_spent_age` data, we noticed that across most age groups, from 18-24 up to 55-64, candy is consistently the highest-spending category. While for the 65+ age group, greeting cards is the top category. This trend reflects the preferences of the different age groups where the younger demographic might gravitate towards simpler, lower-cost options, whereas the older demographic may be more sentimental and appreciate more personalized, heartfelt expressions. 
+
+Next, another interesting trend is from the `lowest_spent_year` data. Across all the years, greeting cards remains as the lowest spent category. This could be attributed to their relatively low cost compared to other gifts, which may explain their consistent position at the bottom of the spending hierarchy.
+
+# Visualizations
+
+## Visualization 1
+```{r}
+ggplot(data = age_df, aes(x = fct_reorder(Gifts,-Percent),y= Percent)) +
+  geom_col(aes(stat="identity",fill=Age), position = position_dodge()) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(title = "Valentine's Day Spending by Age Across Gift Categories",
+       y = "Average Percentage of Consumers(%)", x = "Types of Gifts") + 
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+In Visualization 1, we plotted the average percentage of consumers `Percent` who spent on a category of gift `Gifts` on Valentine's Day, split by the age group of the consumer `Age`. The data for this visualization was sourced from the `age_df` data frame. It is presented as a grouped bar chart. This visualization aims to reveal the types of gifts consumers spend on, and how the types of gifts purchased change based on age range.
+
+A grouped bar chart is ideal for visualizing how age affects the types of gifts purchased as the readers can see the individual consumption of each gift category so as to compare how one's age would affect the chance that a person would buy a certain type of gift. On top of that, a grouped bar chart also allows readers to compare between gift categories, allowing them to either visualize what gifts a specific age group would purchase, or to see the larger trend and compare which gifts are purchased more often.
+
+## Visualization 2
+```{r}
+#reorder the data based on spending percent difference
+gender_df_diff = gender_df %>%
+  pivot_wider(names_from = Gender, values_from = Percent) %>%
+  mutate(Difference = abs(Men - Women)) %>%
+  arrange(Difference)
+
+gender_df_diff$Gifts = factor(gender_df_diff$Gifts, levels = gender_df_diff$Gifts)
+
+ggplot(gender_df_diff) +
+  geom_segment(aes(x=Men, xend = Women, y= Gifts, yend=Gifts)) +
+  geom_point(aes(x = Men, y = Gifts,fill = "Men"),
+             color = "blue",size=6,shape="\u2665") +
+  geom_point(aes(x = Women, y = Gifts,fill="Women"),
+             color = "hotpink", size=6, shape="\u2665") +
+  labs( title = "Valentine’s Day Spending by Gender Across Gift Categories",
+       x = "Average Percentage of Consumers(%)", y = "Types of Gifts", 
+       size = 1 ) +
+  scale_fill_manual(name = "Gender", 
+                      values = c("Men" = "blue", 
+                                 "Women" = "hotpink")) +
+  theme_minimal()+
+  theme(legend.position = "top")
+```
+
+Prior to Visualization 2, we further cleaned the `gender_df` data by mapping the distinct values in `Gender` column into 2 columns - namely `Men` and `Women`, and mapping the values in `Percent` column to the values under those 2 columns. Additionally, we created a `Difference` column, which stores the absolute difference between the average percentage of consumers from each gender who spend on each gift category in `Gifts` column. Afterwards, we stored the resulting data frame as `gender_df_diff`.
+
+In Visualization 2, we plotted the average percentage of consumers in each gender, `Men` and `Women`, who spent on different gift categories `Gifts`. The data for this visualization was sourced from the `gender_df_diff` data frame. It is presented as a dumbbell chart. This visualization is ideal for answering the question of interest because it visually emphasizes the spending gap between men and women for each gift category. By connecting the points for each gender with a line, readers can easily identify which gift categories show the greatest difference and where spending preferences are most similar. The use of distinct colors and heart shapes to represent gender-specific spending improves clarity and allows readers to make comparisons across all categories easily.
+
+## Visualization 3
+```{r}
+start_amount<-hist_df %>% filter(Year=="2010")
+end_amount<-hist_df %>% filter(Year=="2022")
+
+ggplot(data=hist_df,aes(x=Year,y=Amount,group=Gifts,color=Gifts))+
+  geom_abline(data=start_amount,aes(slope=numeric(7),intercept=Amount),linetype=2,color="darkgrey")+
+  geom_abline(data=end_amount,aes(slope=numeric(7),intercept=Amount),linetype=2,color="black")+
+  geom_line()+
+  geom_point(shape="\u2665")+
+  geom_text_repel(data=filter(hist_df,Year=="2021",Gifts %in% c("Candy","Clothing","Flowers","GreetingCards")),aes(label=paste0("dropped to $",Amount)),nudge_x=-0.3,nudge_y=20,colour="black")+
+  geom_text_repel(data=filter(hist_df,Year=="2021",Gifts %in% c("Jewelry","EveningOut")),aes(label=paste0("dropped to $",Amount)),nudge_x=-0.3,nudge_y=-20,colour="black")+
+  geom_text_repel(data=filter(hist_df,Year=="2021",Gifts=="GiftCards"),aes(label=paste0("rose to $",Amount)),nudge_x=-0.3,nudge_y=20,colour="black")+
+  facet_wrap(~Gifts)+
+  labs(title="Valentine's Day Spending from 2010 to 2022 Across Gift Categories",y="Average amount spent per person in dollars($)",color="Gifts")+
+  theme_light()+
+  theme(legend.position="none",axis.text.x=element_text(angle=90),strip.text.x=element_text(color="black"))
+```
+
+In Visualization 3, we plotted the average amount spent per person `Amount` over the years `Year`, on each gift category `Gifts`. The data for this time-series visualization was sourced from the `hist_df` data frame. It is presented as a small multiple line chart. This visualization is ideal in answering the question of interest because readers are able to easily identify the general average spending trends over time for individual gift categories. This can be done by observing the relative positions of the black and darkgrey dotted lines, representing the end and start amount spent respectively, in each of the smaller plots. Thereafter, readers can compare across the smaller plots to spot overall patterns. Hence, this gives insights into how Valentine's Day spending varies across different gift categories over the years.
+
+# Discussions
+
+## Discussion about Visualization 1
+Through Visualization 1, there are two crucial trends that can be observed. Firstly, the most common type of gift purchased across all the age groups is candy, except for those aged 65 and up, where greeting cards are the most common type of gift purchased. This reaffirms our observation made in Section 2.2, and helps to visualize and make more apparent the fact that candy is significantly more purchased compared to the other gift types.
+
+Secondly, another trend that can be seen is that as consumers get older, the proportion of them purchasing the different types of gifts on Valentine's Day decreases, except for greeting cards, which increases. This insight can be explained by a few reasons. As consumers' age increases, they may have more commitments and hence less time to celebrate Valentine's Day, resulting in less consumers buying gifts. Additionally, the downtrend in everything except greeting cards can suggest that as consumers grow older, they prefer more meaningful and inexpensive gifts such as greeting cards rather than costlier ones. Finally, aging individuals, particularly those who are single, may be less inclined to participate in Valentine's Day celebrations, further contributing to a decline in gift consumption. All these reasons could explain the trend of decreasing gift consumption as the age range of the consumer increases.
+
+## Discussion about Visualization 2
+In Visualization 2, there are two key insights that we want to share. Firstly, men and women have significantly different spending preferences for some Valentine's Day gift categories. On average, a significantly higher percentage of men compared to women spend on flowers and jewelry, reflecting traditional norms that encourage men to express love and affection through grand, material gestures. In contrast, higher percentage of women spend on candy, greeting cards and gift cards, reflecting a tendency towards more personalized and emotionally significant gifts. These findings highlight distinct gendered approaches in expressing love, with men focusing on high-value items and women favoring modest yet meaningful gestures.
+
+Secondly, spending on clothing reveals similar levels of interest from both men and women. This suggests a mutual preference for practical Valentine's day gifts that are appealing to both genders. Overall, Visualization 2 highlights the similarities and differences in Valentine’s Day gift spending habits across categories based on gender.
+
+## Discussion about Visualization 3
+
+In Visualization 3, there are two primary insights that we wish to convey. Firstly, across all gift categories, the average spending per person generally increased from 2010 to 2022. The reason for our first insight is that as the economy strengthens over the years between 2010 and 2022, consumers' purchasing power increases, hence Valentine's Day spending across all gift categories saw an overall upward trend. 
+
+Secondly, the average spending per person fell across all gift categories, except for gift cards, in 2021. The reason for our second insight is that 2021 was the first Valentine's Day following the COVID-19 pandemic. The recession due to COVID-19 has hampered consumers' purchasing power, hence Valentine's Day spending across most gift categories fell, especially for luxurious gifts such as jewelry. This explains the drastic fall in average spending per person on jewelry in 2021. Additionally, the government imposed COVID-19 regulations such as lockdown or social distancing, which prevented couples from being physically together in outdoor spaces. This would also explain the significant drop in average spending per person on evening out in 2021. In contrast, gift cards experienced a rise in average spending, likely due to their convenience and virtual delivery options, which made them a practical and accessible gift choice during the pandemic.
+
+## Summary of overall patterns
+
+When examining all three visualizations together, a deeper, multi-layered narrative about Valentine's Day spending habits emerges, revealing how different people’s expressions of affection are influenced not only by age and gender, but also by the shifting economic and social landscapes. Younger consumers, as seen, are more willing to spend on a diverse array of gifts, suggesting that they are at a stage of life where romantic gestures are essential for forming or strengthening relationships. Meanwhile, older consumers gravitate towards simpler, meaningful gifts like greeting cards, reflecting a shift toward valuing sentiment over materialism as life priorities change and relationships mature. Gender differences also add another dimension, with men more likely to focus on traditional symbols of romance like jewelry and flowers, while women’s preference for items like gift cards and candy suggests a more pragmatic, relationship-sustaining approach that emphasizes thoughtfulness over extravagance. Over time, economic conditions have also played a significant role, as seen in the steady increase in spending across categories until the 2021 drop, driven by COVID-19. The pandemic highlighted the shift toward more practical, digital-friendly options like gift cards, showing how external crises can reshape even the most personal aspects of consumer behavior. 
+
+So, "How does Valentine's Day spending vary across different gift categories?"
+Valentine’s Day spending varies across gift categories in ways that reflect evolving societal norms, shifting personal priorities, and adaptable behaviors shaped by life stages and broader external influences. In essence, it serves as a lens through which we can observe not only the nuances of personal relationships but also the changing values and dynamics of society as a whole.
+
+# Teamwork
+The task allocation for this project was well-distributed, with each group member contributing equally to the group project, on different aspects of the project. Kevin initiated the project, developed a detailed plan that kept the team focused and on track, and took responsibility for Visualization 3.3 and Section 4.3. Xin Yu played a crucial role in cleaning and summarizing the data set, which was essential for the team to move forward with their tasks. Jacob focused on Visualization 3.1 and Section 4.1, while Pek Ee was responsible for Visualization 3.2 and Section 4.2. Hannah wrapped up the project by writing Section 4.4, and also helped refine the write-ups of the visualizations. Everyone helped one another by contributing ideas and providing valuable suggestions, improving one another’s parts of the project. This collaborative approach ensured the project’s success, with everyone contributing effectively in their respective roles.
+
+# References
+Das, S. (2022). Happy Valentine's Day 2022. Kaggle. https://www.kaggle.com/datasets/infinator/happy-valentines-day-2022
